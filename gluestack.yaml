@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  UniquePostfix:
+    Type: String
+    Default: glueworkshop
+    Description: 'Enter a unique postfix value, must be all lower cases!'
+  S3Bucket:
+    Type: String
+    Default: s3://
+    Description: 'enter the S3 bucket path for workshop'
+Resources:
+  AWSGlueServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - '' 
+        - - AWSGlueServiceRole- 
+          - !Ref UniquePostfix
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
+        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonKinesisFullAccess'
+  AWSGlueServiceSageMakerNotebookRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - ''
+        - - AWSGlueServiceSageMakerNotebookRole-
+          - !Ref UniquePostfix
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceNotebookRole'
+        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'   
+  AWSGlueDataBrewServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - ''
+        - - AWSGlueDataBrewServiceRole-
+          - !Ref UniquePostfix
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: databrew.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSGlueDataBrewServiceRole'
+  KinesisStream: 
+    Type: AWS::Kinesis::Stream 
+    Properties: 
+        Name: !Ref UniquePostfix  
+        RetentionPeriodHours: 24 
+        ShardCount: 2
+  GlueCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Join 
+            - '' 
+            - - !Ref UniquePostfix 
+              - -cloudformation	
+        Description: Database to tables for workshop
+  JsonStreamingTable:
+    DependsOn: GlueCatalogDatabase
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref GlueCatalogDatabase
+      TableInput:
+        Name: json-streaming-table
+        Description: Define schema for streaming json
+        TableType: EXTERNAL_TABLE
+        Parameters: { "classification": "json" }
+        StorageDescriptor:
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          Columns:
+          - Name: "uuid"
+            Type: bigint
+          - Name: "country"
+            Type: string
+          - Name: "item type"
+            Type: string
+          - Name: "sales channel"
+            Type: string	
+          - Name: "order priority"
+            Type: string
+          - Name: "order date"
+            Type: string
+          - Name: "region"
+            Type: string
+          - Name: "ship date"
+            Type: string
+          - Name: "units sold"
+            Type: int
+          - Name: "unit price"
+            Type: decimal
+          - Name: "unit cost"
+            Type: decimal
+          - Name: "total revenue"
+            Type: decimal
+          - Name: "total cost"
+            Type: decimal
+          - Name: "total profit"
+            Type: decimal		          
+          Parameters: {"endpointUrl": "https://kinesis.us-east-2.amazonaws.com", "streamName": !Ref UniquePostfix,"typeOfData": "kinesis"}
+          SerdeInfo:
+            Parameters: {"paths": "Country,Item Type,Order Date,Order Priority,Region,Sales Channel,Ship Date,Total Cost,Total Profit,Total Revenue,Unit Cost,Unit Price,Units Sold,uuid"}
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+  JsonStaticTable:
+    DependsOn: GlueCatalogDatabase
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref GlueCatalogDatabase
+      TableInput:
+        Name: json-static-table
+        Description: Define schema for static json
+        TableType: EXTERNAL_TABLE
+        Parameters: { "classification": "json" }
+        StorageDescriptor:
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          Columns:
+          - Name: "uuid"
+            Type: bigint
+          - Name: "country"
+            Type: string
+          - Name: "item type"
+            Type: string
+          - Name: "sales channel"
+            Type: string	
+          - Name: "order priority"
+            Type: string
+          - Name: "order date"
+            Type: string
+          - Name: "region"
+            Type: string
+          - Name: "ship date"
+            Type: string
+          - Name: "units sold"
+            Type: int
+          - Name: "unit price"
+            Type: decimal
+          - Name: "unit cost"
+            Type: decimal
+          - Name: "total revenue"
+            Type: decimal
+          - Name: "total cost"
+            Type: decimal
+          - Name: "total profit"
+            Type: decimal		          
+          Location: !Join 
+            - '' 
+            - - !Ref S3Bucket 
+              - input/lab4/json/
+          SerdeInfo:
+            Parameters: {"paths": "Country,Item Type,Order Date,Order Priority,Region,Sales Channel,Ship Date,Total Cost,Total Profit,Total Revenue,Unit Cost,Unit Price,Units Sold,uuid"}
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+  GlueDevEndpoint:
+    Type: 'AWS::Glue::DevEndpoint'
+    Properties: 
+      EndpointName: !Join 
+        - ''
+        - - GlueSageMakerNotebook-
+          - !Ref UniquePostfix
+      Arguments: 
+        GLUE_PYTHON_VERSION: 3
+      GlueVersion: 1.0
+      NumberOfWorkers: 4
+      WorkerType: Standard
+      RoleArn: !GetAtt AWSGlueServiceRole.Arn
+      ExtraPythonLibsS3Path: !Join 
+            - '' 
+            - - !Ref S3Bucket 
+              - 'library/pycountry_convert.zip'
+    DependsOn: AWSGlueServiceRole
+Outputs:
+  EndpointName:
+    Value: !Ref GlueDevEndpoint
+    Description: Endpoint created for Glue Workshop Lab.
